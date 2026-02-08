@@ -1,0 +1,21 @@
+# credentials
+.env
+
+# python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+
+# generated data
+img/*.pdf
+img/*.jpg
+img/*.png
+menu_data.json
+
+# machine-specific MCP client configs (absolute paths)
+.claude/
+
+# legacy
+bento_cookie.txt
+order_result.html
