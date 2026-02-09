@@ -27,7 +27,8 @@ MCP (Model Context Protocol) サーバーとして起動し、Claude Desktop 等
 
 ```bash
 cd ai-lunch-bot
-pip install -e .
+python3 -m venv .venv
+.venv/bin/pip install -e .
 ```
 
 ### 2. 環境変数の設定
@@ -56,29 +57,29 @@ BENTO_PASSWORD=your_password
 
 ```bash
 # stdio モード（Claude Desktop 向け・デフォルト）
-python -m lunch_bot
+.venv/bin/python -m lunch_bot
 
-# SSE モード（Web クライアント向け）
-python -m lunch_bot --sse
+# SSE モード（Web クライアント / Copilot CLI 向け）
+.venv/bin/python -m lunch_bot --sse
 
 # SSE + ポート指定
-python -m lunch_bot --sse --port 9000
+.venv/bin/python -m lunch_bot --sse --port 9000
 ```
 
 ### よく使うパターン
 
 ```bash
 # 初回: フルパイプライン + サーバー起動
-python -m lunch_bot
+.venv/bin/python -m lunch_bot
 
 # 2回目以降: OCR スキップで高速起動
-python -m lunch_bot --skip-ocr
+.venv/bin/python -m lunch_bot --skip-ocr
 
 # メニューデータだけ更新 (サーバー起動なし)
-python -m lunch_bot --pipeline-only
+.venv/bin/python -m lunch_bot --pipeline-only
 
 # 既存 PDF で再 OCR のみ
-python -m lunch_bot --skip-download --pipeline-only
+.venv/bin/python -m lunch_bot --skip-download --pipeline-only
 ```
 
 ### CLI オプション一覧
@@ -155,54 +156,62 @@ python -m lunch_bot --skip-download --pipeline-only
 
 ### GitHub Copilot CLI
 
-プロジェクトに同梱の [`.copilot/mcp-config.json`](.copilot/mcp-config.json)
-が自動で読み込まれます。
+`.copilot/mcp-config.json` を作成してください:
 
-Copilot CLI は SSE 接続のため、先にサーバーを起動しておく必要があります:
+```bash
+mkdir -p .copilot
+cat > .copilot/mcp-config.json << 'EOF'
+{
+  "mcpServers": {
+    "lunch-bot": {
+      "type": "sse",
+      "url": "http://127.0.0.1:8765/sse",
+      "tools": ["*"]
+    }
+  }
+}
+EOF
+```
+
+Copilot CLI は SSE 接続のため、**先にサーバーを起動**しておく必要があります:
 
 ```bash
 # ターミナル 1: SSE サーバー起動
-python -m lunch_bot --sse --skip-ocr
+cd ai-lunch-bot
+.venv/bin/python -m lunch_bot --sse --skip-ocr
 
 # ターミナル 2: Copilot CLI で問い合わせ
-copilot
+cd ai-lunch-bot
+gh copilot
 ```
-
-<details>
-<summary>設定ファイルの中身</summary>
-
-`.copilot/mcp-config.json`:
-
-```json
-{
-    "mcpServers": {
-        "lunch-bot": {
-            "type": "sse",
-            "url": "http://127.0.0.1:8765/sse",
-            "tools": ["*"]
-        }
-    }
-}
-```
-
-</details>
 
 ### Claude Code
 
-プロジェクトに同梱の [`.claude/settings.json`](.claude/settings.json)
-が自動で読み込まれます。\
-`claude` CLI でこのディレクトリに入れば即座に使えます。
-
-<details>
-<summary>手動で設定する場合</summary>
+プロジェクトルートに `.mcp.json` を作成してください:
 
 ```bash
-claude mcp add lunch-bot \
-  -s project \
-  -- /path/to/ai-lunch-bot/.venv/bin/python -m lunch_bot --skip-ocr
+cat > .mcp.json << 'EOF'
+{
+  "mcpServers": {
+    "lunch-bot": {
+      "type": "stdio",
+      "command": "/path/to/ai-lunch-bot/.venv/bin/python",
+      "args": ["-m", "lunch_bot", "--skip-ocr"]
+    }
+  }
+}
+EOF
 ```
 
-</details>
+> **Note**: `command` のパスは実際の絶対パスに置き換えてください。
+
+このディレクトリで `claude` を起動すれば自動的に接続されます:
+
+```bash
+cd ai-lunch-bot
+claude
+# /mcp コマンドで接続状況を確認
+```
 
 ### Claude Desktop
 
@@ -241,12 +250,11 @@ ai-lunch-bot/
 │   ├── ocr.py             Gemini OCR (PDF → JSON)
 │   ├── order.py           注文クライアント (HTTP)
 │   └── server.py          MCP サーバー + ツール定義
+├── .mcp.json              (要作成・gitignore対象) Claude Code MCP 設定
 ├── .vscode/
 │   └── mcp.json           GitHub Copilot (VS Code) MCP 設定
-├── .copilot/
+├── .copilot/              (要作成・gitignore対象)
 │   └── mcp-config.json    GitHub Copilot CLI MCP 設定 (SSE)
-├── .claude/
-│   └── settings.json      Claude Code MCP 設定
 ├── img/                   ダウンロード PDF 保存先
 ├── .env                   API キー・認証情報
 ├── .env.example           .env テンプレート
