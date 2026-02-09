@@ -1,17 +1,19 @@
 """注文クライアント — すみよし弁当注文システムへの HTTP 注文
 
 order.sh の Python 移植版。httpx でログイン → トークン取得 → 注文送信を行う。
-認証情報は .env から読み込む。
+認証情報は .env から読み込む。Cookie を保存して再利用することでログイン回数を削減。
 """
 
+import json
 import logging
 import os
 import re
 from dataclasses import dataclass, field
+from datetime import datetime
 
 import httpx
 
-from lunch_bot.config import ORDER_BASE_URL, USER_AGENT
+from lunch_bot.config import BROWSER_HEADERS, COOKIE_FILE, ORDER_BASE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +70,65 @@ def _get_credentials() -> tuple[str, str, str]:
             ".env に BENTO_USER_CD と BENTO_PASSWORD を設定してください。"
         )
     return company_cd, user_cd, password
+
+
+def _save_cookies(client: httpx.Client) -> None:
+    """認証 Cookie をファイルに保存する。"""
+    cookies_data = {
+        "saved_at": datetime.now().isoformat(),
+        "cookies": [],
+    }
+    for cookie in client.cookies.jar:
+        cookies_data["cookies"].append(
+            {
+                "name": cookie.name,
+                "value": cookie.value,
+                "domain": cookie.domain,
+                "path": cookie.path,
+            }
+        )
+    COOKIE_FILE.write_text(json.dumps(cookies_data, indent=2, ensure_ascii=False))
+    logger.info("Cookie を保存しました: %s", COOKIE_FILE)
+
+
+def _load_cookies(client: httpx.Client) -> bool:
+    """保存された Cookie を読み込む。成功時 True を返す。"""
+    if not COOKIE_FILE.exists():
+        return False
+
+    try:
+        data = json.loads(COOKIE_FILE.read_text())
+        for c in data.get("cookies", []):
+            client.cookies.set(c["name"], c["value"], domain=c["domain"], path=c["path"])
+        logger.info("保存された Cookie を読み込みました")
+        return True
+    except (json.JSONDecodeError, KeyError) as e:
+        logger.warning("Cookie ファイルの読み込みに失敗: %s", e)
+        return False
+
+
+def _is_session_valid(client: httpx.Client) -> bool:
+    """保存された Cookie でセッションが有効か確認する。"""
+    headers = BROWSER_HEADERS.copy()
+    try:
+        resp = client.get(
+            f"{ORDER_BASE_URL}/Order",
+            headers=headers,
+            follow_redirects=False,
+        )
+        # ログインページにリダイレクトされなければ有効
+        if resp.status_code == 200:
+            return True
+        if resp.status_code in (301, 302, 303, 307, 308):
+            location = resp.headers.get("location", "").lower()
+            # ログインページへのリダイレクトはセッション無効
+            if location == "/" or location.endswith("/") or "login" in location:
+                logger.info("セッション無効: リダイレクト先 %s", location)
+                return False
+            return True
+        return False
+    except httpx.HTTPError:
+        return False
 
 
 def _extract_token(html: str) -> str:
@@ -128,42 +189,17 @@ def place_order(date: str, menu_type: str, quantity: int) -> OrderResult:
         menu_type: メニュー種別 ("和風", "あいランチ", "その他" or 0/1/2)
         quantity: 注文数 (0 で取り消し)
     """
-    company_cd, user_cd, password = _get_credentials()
     menu_index = _resolve_menu_index(menu_type)
     order_date = _normalize_date(date)
 
     quantities = [0, 0, 0]
     quantities[menu_index] = quantity
-    headers = {"User-Agent": USER_AGENT}
+    headers = BROWSER_HEADERS.copy()
 
     with httpx.Client(follow_redirects=True, timeout=30) as client:
-        # 1. ログインページ → トークン取得
-        logger.info("[1/4] ログインページ取得...")
-        login_resp = client.get(f"{ORDER_BASE_URL}/", headers=headers)
-        login_resp.raise_for_status()
-        login_token = _extract_token(login_resp.text)
-
-        # 2. ログイン
-        logger.info("[2/4] ログイン実行...")
-        login_result = client.post(
-            f"{ORDER_BASE_URL}/",
-            data={
-                "__RequestVerificationToken": login_token,
-                "CompanyCD": company_cd,
-                "UserCD": user_cd,
-                "Password": password,
-            },
-            headers={
-                **headers,
-                "Referer": f"{ORDER_BASE_URL}/",
-                "Origin": ORDER_BASE_URL,
-            },
-        )
-        login_result.raise_for_status()
-
-        # 認証 Cookie 確認
-        auth_cookies = [c for c in client.cookies.jar if c.name == ".ASPXAUTH"]
-        if not auth_cookies:
+        # 1. ログイン（保存 Cookie を優先使用）
+        logger.info("[1/3] 認証処理...")
+        if not _login(client):
             return OrderResult(
                 success=False,
                 message="ログインに失敗しました。認証情報を確認してください。",
@@ -172,8 +208,8 @@ def place_order(date: str, menu_type: str, quantity: int) -> OrderResult:
                 quantity=quantity,
             )
 
-        # 3. 注文ページ → トークン取得
-        logger.info("[3/4] 注文ページ取得 (日付: %s)...", order_date)
+        # 2. 注文ページ → トークン取得
+        logger.info("[2/3] 注文ページ取得 (日付: %s)...", order_date)
         order_url = (
             f"{ORDER_BASE_URL}/Order/CreateDetails"
             f"?dt={order_date}&kbn=1&err=false"
@@ -185,9 +221,9 @@ def place_order(date: str, menu_type: str, quantity: int) -> OrderResult:
         order_resp.raise_for_status()
         order_token = _extract_token(order_resp.text)
 
-        # 4. 注文送信
+        # 3. 注文送信
         action = "取り消し" if quantity == 0 else "注文"
-        logger.info("[4/4] %s送信 (メニュー: %s, 数量: %d)...", action, menu_type, quantity)
+        logger.info("[3/3] %s送信 (メニュー: %s, 数量: %d)...", action, menu_type, quantity)
 
         client.post(
             order_url,
@@ -222,10 +258,22 @@ def cancel_order(date: str, menu_type: str) -> OrderResult:
 # ─────────────────────── order status ───────────────────────
 
 
-def _login(client: httpx.Client) -> bool:
-    """共通ログイン処理。成功時 True を返す。"""
+def _login(client: httpx.Client, force: bool = False) -> bool:
+    """共通ログイン処理。成功時 True を返す。
+
+    Args:
+        client: httpx クライアント
+        force: True の場合、保存 Cookie を無視して再ログイン
+    """
+    # 保存された Cookie を試す
+    if not force and _load_cookies(client):
+        if _is_session_valid(client):
+            logger.info("保存された Cookie でセッション有効")
+            return True
+        logger.info("保存された Cookie が無効、再ログインします")
+
     company_cd, user_cd, password = _get_credentials()
-    headers = {"User-Agent": USER_AGENT}
+    headers = BROWSER_HEADERS.copy()
 
     login_resp = client.get(f"{ORDER_BASE_URL}/", headers=headers)
     login_resp.raise_for_status()
@@ -242,7 +290,10 @@ def _login(client: httpx.Client) -> bool:
         headers={**headers, "Referer": f"{ORDER_BASE_URL}/", "Origin": ORDER_BASE_URL},
     )
     auth_cookies = [c for c in client.cookies.jar if c.name == ".ASPXAUTH"]
-    return bool(auth_cookies)
+    if auth_cookies:
+        _save_cookies(client)
+        return True
+    return False
 
 
 def get_order_status(date: str) -> DayOrderStatus:
@@ -252,7 +303,7 @@ def get_order_status(date: str) -> DayOrderStatus:
         date: 対象日 (YYYY-MM-DD or YYYY/MM/DD)
     """
     order_date = _normalize_date(date)
-    headers = {"User-Agent": USER_AGENT}
+    headers = BROWSER_HEADERS.copy()
 
     with httpx.Client(follow_redirects=True, timeout=30) as client:
         if not _login(client):
@@ -285,7 +336,7 @@ def get_monthly_orders(year: int, month: int) -> list[DayOrderStatus]:
         year: 年 (例: 2026)
         month: 月 (1-12)
     """
-    headers = {"User-Agent": USER_AGENT}
+    headers = BROWSER_HEADERS.copy()
 
     with httpx.Client(follow_redirects=True, timeout=30) as client:
         if not _login(client):
