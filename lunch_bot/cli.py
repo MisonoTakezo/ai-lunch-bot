@@ -13,12 +13,16 @@ from lunch_bot.ocr import load_menu_data, ocr_all_menus, save_menu_data
 logger = logging.getLogger(__name__)
 
 
-def _setup_logging(verbose: bool = False) -> None:
-    logging.basicConfig(
-        level=logging.DEBUG if verbose else logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%H:%M:%S",
-    )
+def _setup_logging(verbose: bool = False, log_file: str | None = None) -> None:
+    level = logging.DEBUG if verbose else logging.INFO
+    fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    datefmt = "%H:%M:%S"
+
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    if log_file:
+        handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
+
+    logging.basicConfig(level=level, format=fmt, datefmt=datefmt, handlers=handlers)
 
 
 # ─────────────────────────── pipeline ───────────────────────────
@@ -119,9 +123,10 @@ def main() -> None:
     )
 
     parser.add_argument("-v", "--verbose", action="store_true", help="詳細ログ")
+    parser.add_argument("--log-file", type=str, help="ログをファイルに出力")
 
     args = parser.parse_args()
-    _setup_logging(args.verbose)
+    _setup_logging(args.verbose, args.log_file)
 
     transport = "sse" if args.sse else "stdio"
 
