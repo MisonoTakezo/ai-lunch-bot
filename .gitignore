@@ -12,9 +12,12 @@ img/*.pdf
 img/*.jpg
 img/*.png
 menu_data.json
+.bento_cookies.json
+*.log
 
 # machine-specific MCP client configs (absolute paths)
-.claude/
+.mcp.json
+.copilot/
 
 # legacy
 bento_cookie.txt
