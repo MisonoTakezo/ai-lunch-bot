@@ -221,32 +221,60 @@ def place_order(date: str, menu_type: str, quantity: int) -> OrderResult:
         order_resp.raise_for_status()
         order_token = _extract_token(order_resp.text)
 
-        # 3. 注文送信
+        # 3. 注文送信 (リダイレクトを追わずにレスポンスを確認)
         action = "取り消し" if quantity == 0 else "注文"
         logger.info("[3/3] %s送信 (メニュー: %s, 数量: %d)...", action, menu_type, quantity)
 
-        client.post(
-            order_url,
-            data={
-                "__RequestVerificationToken": order_token,
-                "[0].数量": str(quantities[0]),
-                "[1].数量": str(quantities[1]),
-                "[2].数量": str(quantities[2]),
-            },
-            headers={**headers, "Referer": order_url, "Origin": ORDER_BASE_URL},
-        ).raise_for_status()
+        # follow_redirects=False で送信してリダイレクト先を確認
+        with httpx.Client(cookies=client.cookies, timeout=30) as post_client:
+            post_resp = post_client.post(
+                order_url,
+                data={
+                    "__RequestVerificationToken": order_token,
+                    "[0].数量": str(quantities[0]),
+                    "[1].数量": str(quantities[1]),
+                    "[2].数量": str(quantities[2]),
+                },
+                headers={**headers, "Referer": order_url, "Origin": ORDER_BASE_URL},
+                follow_redirects=False,
+            )
 
     menu_name = {0: "和風ランチ", 1: "あいランチ", 2: "その他"}.get(
         menu_index, menu_type
     )
-    msg = (
-        f"{date} の {menu_name} の注文を取り消しました。"
-        if quantity == 0
-        else f"{date} の {menu_name} を {quantity} 個注文しました。"
-    )
-    logger.info("注文処理完了: %s", msg)
+
+    # リダイレクト先で成功/失敗を判定
+    if post_resp.status_code in (301, 302, 303, 307, 308):
+        location = post_resp.headers.get("location", "")
+        if "err=True" in location or "err=true" in location.lower():
+            # エラー: 締め切り過ぎ、過去の日付など
+            logger.warning("注文失敗: リダイレクト先に err=True")
+            return OrderResult(
+                success=False,
+                message=f"{date} の {menu_name} の{action}に失敗しました。締め切りを過ぎているか、変更できない日付です。",
+                date=date,
+                menu_type=menu_name,
+                quantity=quantity,
+            )
+        # 成功: /Order?idx=N へのリダイレクト
+        msg = (
+            f"{date} の {menu_name} の注文を取り消しました。"
+            if quantity == 0
+            else f"{date} の {menu_name} を {quantity} 個注文しました。"
+        )
+        logger.info("注文処理完了: %s", msg)
+        return OrderResult(
+            success=True, message=msg, date=date, menu_type=menu_name, quantity=quantity
+        )
+
+    # リダイレクトなし = 予期しないレスポンス
+    logger.warning("注文失敗: 予期しないステータス %d", post_resp.status_code)
     return OrderResult(
-        success=True, message=msg, date=date, menu_type=menu_name, quantity=quantity
+        success=False,
+        message=f"{date} の {menu_name} の{action}に失敗しました。予期しないレスポンスです。",
+        date=date,
+        menu_type=menu_name,
+        quantity=quantity,
     )
 
 
