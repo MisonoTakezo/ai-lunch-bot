@@ -15,7 +15,8 @@ from datetime import datetime, timedelta
 
 from mcp.server.fastmcp import FastMCP
 
-from lunch_bot.ocr import load_menu_data
+from lunch_bot.downloader import download_all_menus
+from lunch_bot.ocr import load_menu_data, ocr_all_menus, save_menu_data
 from lunch_bot.order import cancel_order as _cancel_order
 from lunch_bot.order import get_monthly_orders as _get_monthly_orders
 from lunch_bot.order import get_order_status as _get_order_status
@@ -44,6 +45,49 @@ def create_mcp(host: str = "127.0.0.1", port: int = 8765) -> FastMCP:
 
 def _load_menu() -> list[dict]:
     return load_menu_data()
+
+
+def _ensure_menu_for_date(target_date: str) -> list[dict]:
+    """指定日付のメニューがなければ、PDFダウンロード→OCRを実行してデータを更新する。
+
+    Args:
+        target_date: YYYY-MM-DD 形式の日付
+
+    Returns:
+        更新後のメニューリスト
+    """
+    menu_list = load_menu_data()
+
+    # 該当日付があればそのまま返す
+    if any(item["date"] == target_date for item in menu_list):
+        return menu_list
+
+    # 日付をパース
+    try:
+        target = datetime.strptime(target_date, "%Y-%m-%d")
+    except ValueError:
+        return menu_list  # パース失敗ならそのまま返す
+
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # 過去または30日より先の未来は更新しない
+    if target < today or target > today + timedelta(days=30):
+        return menu_list
+
+    # PDF ダウンロード → OCR 実行
+    logger.info("📥 メニューデータを自動更新中 (対象: %s)...", target_date)
+    try:
+        pdf_paths = download_all_menus()
+        if pdf_paths:
+            new_menus = ocr_all_menus(pdf_paths)
+            if new_menus:
+                save_menu_data(new_menus)
+                logger.info("✅ メニューデータを更新しました (%d 日分)", len(new_menus))
+                return new_menus
+    except Exception as e:
+        logger.warning("⚠️ メニューデータの自動更新に失敗: %s", e)
+
+    return menu_list
 
 
 def _resolve_date_query(query: str) -> str | None:
@@ -93,11 +137,13 @@ def get_lunch_menu(date_str: str) -> str:
     Args:
         date_str: 日付 (YYYY-MM-DD, YYYY/MM/DD, M/D, "今日", "明日", "来週の月曜日" など)
     """
-    menu_list = _load_menu()
+    target = _resolve_date_query(date_str) or date_str.strip()
+
+    # 該当日付がなければ自動でPDFダウンロード→OCRを試みる
+    menu_list = _ensure_menu_for_date(target)
+
     if not menu_list:
         return "メニューデータが見つかりません。先にパイプラインを実行してください。"
-
-    target = _resolve_date_query(date_str) or date_str.strip()
 
     for item in menu_list:
         if item["date"] == target:
@@ -118,13 +164,14 @@ def search_menu(query: str) -> str:
     Args:
         query: 検索キーワード (例: "フライ", "ハンバーグ", "来週", "2月10日")
     """
-    menu_list = _load_menu()
-    if not menu_list:
-        return "メニューデータが見つかりません。"
-
     # 日付として解決を試みる
     resolved = _resolve_date_query(query)
     if resolved:
+        # 該当日付がなければ自動でPDFダウンロード→OCRを試みる
+        menu_list = _ensure_menu_for_date(resolved)
+        if not menu_list:
+            return "メニューデータが見つかりません。"
+
         for item in menu_list:
             if item["date"] == resolved:
                 return (
@@ -135,6 +182,10 @@ def search_menu(query: str) -> str:
         return f"{resolved} のメニューは見つかりませんでした。"
 
     # キーワード検索
+    menu_list = _load_menu()
+    if not menu_list:
+        return "メニューデータが見つかりません。"
+
     keywords = query.strip().split()
     results: list[str] = []
 
