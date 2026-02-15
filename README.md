@@ -2,10 +2,13 @@
 
 **すみよしランチメニューの問い合わせ・注文ができるローカル MCP サーバー**
 
-[sumiyoshi-bento.com](https://sumiyoshi-bento.com/menu/) のメニュー PDF
-を自動取得し、Gemini で OCR → JSON 変換。\
-MCP (Model Context Protocol) サーバーとして起動し、Claude Desktop 等の AI
-アシスタントから自然言語でメニュー確認・注文ができます。
+| サイト | URL |
+|--------|-----|
+| メニュー掲載 | https://sumiyoshi-bento.com/menu/ |
+| 注文システム | https://sumiyoshi.azurewebsites.net/ |
+
+メニュー PDF を自動取得し、Gemini で OCR → JSON 変換。
+MCP (Model Context Protocol) サーバーとして起動し、Claude Code / GitHub Copilot 等の AI アシスタントから自然言語でメニュー確認・注文ができます。
 
 ---
 
@@ -15,8 +18,8 @@ MCP (Model Context Protocol) サーバーとして起動し、Claude Desktop 等
 | -- | ------------------- | ---------------------------------------------------- |
 | 📥 | **PDF 自動取得**    | サイト掲載の全期間分メニュー PDF をダウンロード      |
 | 🔍 | **Gemini OCR**      | PDF を直接アップロードし JSON に変換（画像変換不要） |
-| 🗣️ | **自然言語検索**    | 「明日のメニューは？」「フライがある日は？」         |
-| 🛒 | **注文 / 取り消し** | すみよし注文システムと HTTP 連携                     |
+| 🗣️ | **自然言語検索**    | 「明日のメニューは？」「フライがある日は？」「魚料理のメニューはどっち？🐟️」          |
+| 🛒 | **注文 / 取り消し** | すみよし注文システムにHTTP リクエスト                    |
 | 🔌 | **MCP 対応**        | stdio / SSE 両トランスポート対応                     |
 
 ---
@@ -51,7 +54,128 @@ BENTO_PASSWORD=your_password
 
 ---
 
-## 📖 使い方
+## 🔧 MCP ツール
+
+| ツール           | 説明                   | 引数                                                                     |
+| ---------------- | ---------------------- | ------------------------------------------------------------------------ |
+| `get_lunch_menu` | 日付指定でメニュー取得 | `date_str`: `"2026-02-10"`, `"明日"`, `"来週の月曜日"`                   |
+| `search_menu`    | キーワード検索         | `query`: `"フライ"`, `"ハンバーグ"`                                      |
+| `list_all_menus` | 全メニュー一覧         | —                                                                        |
+| `place_order`    | 注文                   | `date`, `menu_type` (`"和風"` / `"あいランチ"` / `"その他"`), `quantity` |
+| `cancel_order`   | 取り消し               | `date`, `menu_type`                                                      |
+| `get_order_status` | 注文状況確認         | `date_str`: `"今日"`, `"今月"`, `"2月"`                                  |
+
+### 会話例
+
+```
+👤 明日のランチメニューを教えて
+🤖 📅 2026-02-09 のランチメニュー
+   🍱 あいランチ: ハムベーコンフライ, 切干大根煮, ...
+   🐟 和風ランチ: ブリの漬け焼き, ...
+
+👤 フライがある日はいつ？
+🤖 「フライ」の検索結果 (7 件): ...
+
+👤 明日のあいランチを 1 つ注文して
+🤖 ✅ 2026-02-09 の あいランチ を 1 個注文しました。
+
+👤 やっぱり取り消して
+🤖 ✅ 2026-02-09 の あいランチ の注文を取り消しました。
+```
+
+---
+
+## 🖥️ MCP クライアント接続設定
+
+### Claude Code
+
+プロジェクトルートの `.mcp.json` に設定を追加します:
+
+```bash
+cat > .mcp.json << 'EOF'
+{
+  "mcpServers": {
+    "lunch-bot": {
+      "type": "stdio",
+      "command": "/path/to/ai-lunch-bot/.venv/bin/python",
+      "args": ["-m", "lunch_bot", "--skip-ocr"]
+    }
+  }
+}
+EOF
+```
+
+> **Note**: `command` のパスは実際の絶対パスに置き換えてください。
+
+このディレクトリで `claude` を起動すれば自動的に接続されます:
+
+```bash
+cd ai-lunch-bot
+claude
+# /mcp コマンドで接続状況を確認
+```
+
+### GitHub Copilot (VS Code)
+
+プロジェクトに同梱の [`.vscode/mcp.json`](.vscode/mcp.json)
+が自動で読み込まれます。\
+設定変更不要でそのまま使えます。
+
+<details>
+<summary>手動で設定する場合</summary>
+
+`.vscode/mcp.json`:
+
+```json
+{
+    "servers": {
+        "lunch-bot": {
+            "type": "stdio",
+            "command": "/path/to/ai-lunch-bot/.venv/bin/python",
+            "args": ["-m", "lunch_bot", "--skip-ocr"]
+        }
+    }
+}
+```
+
+</details>
+
+### GitHub Copilot CLI
+
+`.copilot/mcp-config.json` に設定を追加します:
+
+```bash
+mkdir -p .copilot
+cat > .copilot/mcp-config.json << 'EOF'
+{
+  "mcpServers": {
+    "lunch-bot": {
+      "type": "sse",
+      "url": "http://127.0.0.1:8765/sse",
+      "tools": ["*"]
+    }
+  }
+}
+EOF
+```
+
+Copilot CLI は SSE 接続のため、**先にサーバーを起動**しておく必要があります:
+
+```bash
+# ターミナル 1: SSE サーバー起動
+cd ai-lunch-bot
+.venv/bin/python -m lunch_bot --sse --skip-ocr
+
+# ターミナル 2: Copilot CLI で問い合わせ
+cd ai-lunch-bot
+gh copilot
+```
+
+> 💡 `--skip-ocr` で起動が高速に。メニュー更新時は外してください。
+
+---
+
+## 📖 サーバーの起動方法
 
 ### 1 コマンドで起動
 
@@ -93,147 +217,8 @@ BENTO_PASSWORD=your_password
 | `--skip-download` | PDF ダウンロードをスキップ            |
 | `--skip-ocr`      | OCR をスキップ（既存 JSON 使用）      |
 | `--pipeline-only` | パイプラインのみ実行                  |
+| `--log-file FILE` | ログをファイルに出力                  |
 | `-v, --verbose`   | 詳細ログを表示                        |
-
----
-
-## 🔧 MCP ツール
-
-| ツール           | 説明                   | 引数                                                                     |
-| ---------------- | ---------------------- | ------------------------------------------------------------------------ |
-| `get_lunch_menu` | 日付指定でメニュー取得 | `date_str`: `"2026-02-10"`, `"明日"`, `"来週の月曜日"`                   |
-| `search_menu`    | キーワード検索         | `query`: `"フライ"`, `"ハンバーグ"`                                      |
-| `list_all_menus` | 全メニュー一覧         | —                                                                        |
-| `place_order`    | 注文                   | `date`, `menu_type` (`"和風"` / `"あいランチ"` / `"その他"`), `quantity` |
-| `cancel_order`   | 取り消し               | `date`, `menu_type`                                                      |
-
-### 会話例（Claude Desktop）
-
-```
-👤 明日のランチメニューを教えて
-🤖 📅 2026-02-09 のランチメニュー
-   🍱 あいランチ: ハムベーコンフライ, 切干大根煮, ...
-   🐟 和風ランチ: ブリの漬け焼き, ...
-
-👤 フライがある日はいつ？
-🤖 「フライ」の検索結果 (7 件): ...
-
-👤 明日のあいランチを 1 つ注文して
-🤖 ✅ 2026-02-09 の あいランチ を 1 個注文しました。
-
-👤 やっぱり取り消して
-🤖 ✅ 2026-02-09 の あいランチ の注文を取り消しました。
-```
-
----
-
-## 🖥️ MCP クライアント接続設定
-
-### GitHub Copilot (VS Code)
-
-プロジェクトに同梱の [`.vscode/mcp.json`](.vscode/mcp.json)
-が自動で読み込まれます。\
-設定変更不要でそのまま使えます。
-
-<details>
-<summary>手動で設定する場合</summary>
-
-`.vscode/mcp.json`:
-
-```json
-{
-    "servers": {
-        "lunch-bot": {
-            "type": "stdio",
-            "command": "/path/to/ai-lunch-bot/.venv/bin/python",
-            "args": ["-m", "lunch_bot", "--skip-ocr"]
-        }
-    }
-}
-```
-
-</details>
-
-### GitHub Copilot CLI
-
-`.copilot/mcp-config.json` を作成してください:
-
-```bash
-mkdir -p .copilot
-cat > .copilot/mcp-config.json << 'EOF'
-{
-  "mcpServers": {
-    "lunch-bot": {
-      "type": "sse",
-      "url": "http://127.0.0.1:8765/sse",
-      "tools": ["*"]
-    }
-  }
-}
-EOF
-```
-
-Copilot CLI は SSE 接続のため、**先にサーバーを起動**しておく必要があります:
-
-```bash
-# ターミナル 1: SSE サーバー起動
-cd ai-lunch-bot
-.venv/bin/python -m lunch_bot --sse --skip-ocr
-
-# ターミナル 2: Copilot CLI で問い合わせ
-cd ai-lunch-bot
-gh copilot
-```
-
-### Claude Code
-
-プロジェクトルートに `.mcp.json` を作成してください:
-
-```bash
-cat > .mcp.json << 'EOF'
-{
-  "mcpServers": {
-    "lunch-bot": {
-      "type": "stdio",
-      "command": "/path/to/ai-lunch-bot/.venv/bin/python",
-      "args": ["-m", "lunch_bot", "--skip-ocr"]
-    }
-  }
-}
-EOF
-```
-
-> **Note**: `command` のパスは実際の絶対パスに置き換えてください。
-
-このディレクトリで `claude` を起動すれば自動的に接続されます:
-
-```bash
-cd ai-lunch-bot
-claude
-# /mcp コマンドで接続状況を確認
-```
-
-### Claude Desktop
-
-`~/Library/Application Support/Claude/claude_desktop_config.json`:
-
-```json
-{
-    "mcpServers": {
-        "lunch-bot": {
-            "command": "/path/to/ai-lunch-bot/.venv/bin/python",
-            "args": ["-m", "lunch_bot", "--skip-ocr"],
-            "env": {
-                "GOOGLE_API_KEY": "your_api_key",
-                "BENTO_USER_CD": "your_user_cd",
-                "BENTO_PASSWORD": "your_password"
-            }
-        }
-    }
-}
-```
-
-> 💡 `--skip-ocr` で起動が高速に。メニュー更新時は外してください。
 
 ---
 
