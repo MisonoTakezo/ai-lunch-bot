@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400">
+  <defs>
+    <style>
+      .box { fill: #f8f9fa; stroke: #495057; stroke-width: 2; rx: 8; }
+      .box-primary { fill: #e7f1ff; stroke: #4a90d9; stroke-width: 2; rx: 8; }
+      .box-server { fill: #fff3cd; stroke: #ffc107; stroke-width: 2; rx: 8; }
+      .text { font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 14px; fill: #212529; }
+      .text-title { font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 16px; font-weight: bold; fill: #212529; }
+      .text-small { font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 12px; fill: #6c757d; }
+      .arrow { stroke: #495057; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+      .arrow-label { font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 12px; fill: #495057; }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#495057" />
+    </marker>
+  </defs>
+
+  <!-- Client Box -->
+  <rect class="box-primary" x="50" y="60" width="180" height="80" />
+  <text class="text-title" x="140" y="95" text-anchor="middle">Claude Code</text>
+  <text class="text" x="140" y="120" text-anchor="middle">/ Copilot</text>
+
+  <!-- Server Box -->
+  <rect class="box-server" x="400" y="60" width="200" height="80" />
+  <text class="text-title" x="500" y="95" text-anchor="middle">AI らんちくん</text>
+  <text class="text-small" x="500" y="118" text-anchor="middle">(MCP サーバー)</text>
+
+  <!-- Arrows between Client and Server -->
+  <line class="arrow" x1="230" y1="85" x2="395" y2="85" />
+  <text class="arrow-label" x="312" y="75" text-anchor="middle">自然言語</text>
+
+  <line x1="395" y1="115" x2="235" y2="115" stroke="#495057" stroke-width="2" marker-end="url(#arrowhead)" />
+  <text class="arrow-label" x="312" y="135" text-anchor="middle">結果</text>
+
+  <!-- Vertical line from Server -->
+  <line x1="500" y1="140" x2="500" y2="180" stroke="#495057" stroke-width="2" />
+
+  <!-- Horizontal connector -->
+  <line x1="170" y1="200" x2="630" y2="200" stroke="#495057" stroke-width="2" />
+
+  <!-- Vertical lines to sub-boxes -->
+  <line x1="170" y1="200" x2="170" y2="240" stroke="#495057" stroke-width="2" marker-end="url(#arrowhead)" />
+  <line x1="400" y1="200" x2="400" y2="240" stroke="#495057" stroke-width="2" marker-end="url(#arrowhead)" />
+  <line x1="630" y1="200" x2="630" y2="240" stroke="#495057" stroke-width="2" marker-end="url(#arrowhead)" />
+
+  <!-- Sub-boxes -->
+  <!-- PDF Download -->
+  <rect class="box" x="70" y="250" width="200" height="70" />
+  <text class="text-title" x="170" y="280" text-anchor="middle">メニュー PDF 取得</text>
+  <text class="text-small" x="170" y="300" text-anchor="middle">Web スクレイピング</text>
+
+  <!-- Gemini OCR -->
+  <rect class="box" x="300" y="250" width="200" height="70" />
+  <text class="text-title" x="400" y="280" text-anchor="middle">Gemini OCR</text>
+  <text class="text-small" x="400" y="300" text-anchor="middle">PDF → JSON 変換</text>
+
+  <!-- Order System -->
+  <rect class="box" x="530" y="250" width="200" height="70" />
+  <text class="text-title" x="630" y="280" text-anchor="middle">注文システム</text>
+  <text class="text-small" x="630" y="300" text-anchor="middle">ログイン・注文・確認</text>
+</svg>
