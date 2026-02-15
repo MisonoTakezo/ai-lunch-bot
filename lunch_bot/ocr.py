@@ -1,4 +1,5 @@
-"""OCR モジュール — Gemini API で PDF からメニュー JSON を生成する
+"""OCR モジュール 
+Gemini API で PDF からメニュー JSON を生成する
 
 google-genai を使い、PDF を直接アップロードして OCR → JSON 変換する。
 複数 PDF に対応し、結果をマージして重複日付は除去する。
@@ -17,7 +18,7 @@ from lunch_bot.config import IMG_DIR, MENU_FILE
 
 logger = logging.getLogger(__name__)
 
-EXTRACTION_PROMPT = """\
+MENU_EXTRACTION_PROMPT = """\
 この PDF はランチメニュー表です。
 全ての日付について、あいランチと和風ランチの情報を抽出し、以下のフォーマットの JSON 配列で出力してください。
 
@@ -49,9 +50,9 @@ def ocr_pdf(client: genai.Client, pdf_path: Path) -> list[dict]:
     """単一 PDF を Gemini で OCR し、メニューリストを返す。"""
     logger.info("OCR 処理中: %s", pdf_path.name)
 
-    prompt = EXTRACTION_PROMPT.format(current_year=datetime.now().year)
+    prompt = MENU_EXTRACTION_PROMPT.format(current_year=datetime.now().year)
 
-    # File API でアップロード (日本語ファイル名対応のためバイナリで渡す)
+    # ファイルをアップロード (日本語ファイル名対応のためバイナリで渡す)
     uploaded = client.files.upload(
         file=io.BytesIO(pdf_path.read_bytes()),
         config={"mime_type": "application/pdf"},
@@ -65,7 +66,7 @@ def ocr_pdf(client: genai.Client, pdf_path: Path) -> list[dict]:
 
     raw_text = response.text.strip()
 
-    # マークダウンブロックが含まれている場合に除去
+    # マークダウンブロックが含まれている場合は除去してJSON部分だけ抽出する
     if raw_text.startswith("```"):
         raw_text = raw_text.split("\n", 1)[1]
     if raw_text.endswith("```"):
@@ -101,7 +102,8 @@ def ocr_all_menus(pdf_paths: list[Path] | None = None) -> list[dict]:
         try:
             menus = ocr_pdf(client, pdf_path)
             for item in menus:
-                all_menus[item["date"]] = item  # 後勝ちで dedup
+                # 後勝ちで dedup
+                all_menus[item["date"]] = item
         except Exception as e:
             logger.error("OCR 失敗 (%s): %s", pdf_path.name, e)
 

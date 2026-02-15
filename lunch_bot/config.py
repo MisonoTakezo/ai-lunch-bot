@@ -1,10 +1,10 @@
-"""パス定数・環境変数の一元管理"""
+"""URLやファイルパスなどの定数を管理するモジュール"""
 
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-# プロジェクトルート = lunch_bot/ の親
+# プロジェクトルート（lunch_bot/ の親）
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # .env をロード
@@ -18,11 +18,12 @@ IMG_DIR.mkdir(exist_ok=True)
 MENU_FILE = PROJECT_ROOT / "menu_data.json"
 COOKIE_FILE = PROJECT_ROOT / ".bento_cookies.json"
 
-# 外部 URL
+# メニューのPDFが掲載されているホームページのURL
 MENU_PAGE_URL = "https://sumiyoshi-bento.com/menu/"
+# 注文システムのベースのURL
 ORDER_BASE_URL = "https://sumiyoshi.azurewebsites.net"
 
-# HTTP - ブラウザに近いヘッダー
+# HTTPリクエストのヘッダー（ブラウザっぽくしてBOT検知回避）
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"

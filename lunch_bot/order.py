@@ -17,7 +17,7 @@ from lunch_bot.config import BROWSER_HEADERS, COOKIE_FILE, ORDER_BASE_URL
 
 logger = logging.getLogger(__name__)
 
-# メニュー種別 → インデックス
+# メニュー種別 → インデックス（ユーザー入力の表記揺れを吸収する）
 MENU_TYPE_MAP: dict[str, int] = {
     "和風": 0,
     "和風ランチ": 0,
@@ -279,7 +279,7 @@ def place_order(date: str, menu_type: str, quantity: int) -> OrderResult:
 
 
 def cancel_order(date: str, menu_type: str) -> OrderResult:
-    """注文を取り消す (数量 0 で送信)。"""
+    """注文を取り消す (数量 0 で送信)"""
     return place_order(date, menu_type, quantity=0)
 
 
@@ -287,7 +287,7 @@ def cancel_order(date: str, menu_type: str) -> OrderResult:
 
 
 def _login(client: httpx.Client, force: bool = False) -> bool:
-    """共通ログイン処理。成功時 True を返す。
+    """共通ログイン処理。成功時 True を返す
 
     Args:
         client: httpx クライアント

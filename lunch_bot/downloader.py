@@ -1,4 +1,4 @@
-"""メニュー PDF ダウンローダー
+"""メニューのPDFをダウンロードするモジュール
 
 sumiyoshi-bento.com/menu/ から掲載中の全メニュー PDF を取得し、
 img/ ディレクトリに保存する。
@@ -37,7 +37,7 @@ def fetch_pdf_urls() -> list[str]:
     return pdf_urls
 
 
-def _url_to_filename(url: str) -> str:
+def _convert_url_to_filename(url: str) -> str:
     """URL からファイル名を生成する。日本語ファイル名はデコードして保持。"""
     decoded = unquote(url.split("/")[-1])
     return re.sub(r"[^\w\-.\u3000-\u9fff\uff00-\uffef]", "_", decoded)
@@ -48,7 +48,7 @@ def download_pdf(url: str, dest_dir: Path | None = None) -> Path:
     dest_dir = dest_dir or IMG_DIR
     dest_dir.mkdir(parents=True, exist_ok=True)
 
-    filename = _url_to_filename(url)
+    filename = _convert_url_to_filename(url)
     filepath = dest_dir / filename
 
     if filepath.exists():
