@@ -1,4 +1,6 @@
-# 🍱 ai-lunch-bot 🍱 
+# 🍱 ai-lunch-bot 🍱
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **すみよしランチメニューの問い合わせ・注文ができるローカル MCP サーバー**
 
