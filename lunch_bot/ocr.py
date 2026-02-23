@@ -23,7 +23,10 @@ MENU_EXTRACTION_PROMPT = """\
 全ての日付について、あいランチと和風ランチの情報を抽出し、以下のフォーマットの JSON 配列で出力してください。
 
 ルール:
-- YYYY が取得できない場合は {current_year} を使用してください。
+- **重要**: このPDFには年(YYYY)が印字されていません。日付の年は以下のルールで決定してください:
+  - 基本: {current_year} 年を使用
+  - 年またぎ: 現在が12月で、メニューの月が1〜3月の場合は {next_year} 年を使用
+- PDFに「2020」等の年が見えても誤読の可能性があるため無視し、上記ルールに従ってください。
 - 土曜・日曜・祝日のメニューは含めないでください。
 - JSON のみを出力し、マークダウンのコードブロック (```) は使わないでください。
 
@@ -50,7 +53,11 @@ def ocr_pdf(client: genai.Client, pdf_path: Path) -> list[dict]:
     """単一 PDF を Gemini で OCR し、メニューリストを返す。"""
     logger.info("OCR 処理中: %s", pdf_path.name)
 
-    prompt = MENU_EXTRACTION_PROMPT.format(current_year=datetime.now().year)
+    now = datetime.now()
+    prompt = MENU_EXTRACTION_PROMPT.format(
+        current_year=now.year,
+        next_year=now.year + 1,
+    )
 
     # ファイルをアップロード (日本語ファイル名対応のためバイナリで渡す)
     uploaded = client.files.upload(

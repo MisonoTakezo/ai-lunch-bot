@@ -1,13 +1,13 @@
 # 🍱 ai-lunch-bot 🍱
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<a href="https://opensource.org/licenses/MIT" rel="noopener"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
 
 **すみよしランチメニューの問い合わせ・注文ができるローカル MCP サーバー**
 
 | サイト | URL |
 |--------|-----|
-| メニュー掲載 | https://sumiyoshi-bento.com/menu/ |
-| 注文システム | https://sumiyoshi.azurewebsites.net/ |
+| メニュー掲載 | <a href="https://sumiyoshi-bento.com/menu/" rel="noopener">https://sumiyoshi-bento.com/menu/</a> |
+| 注文システム | <a href="https://sumiyoshi.azurewebsites.net/" rel="noopener">https://sumiyoshi.azurewebsites.net/</a> |
 
 メニュー PDF を自動取得し、Gemini で OCR → JSON 変換。
 MCP (Model Context Protocol) サーバーとして起動し、Claude Code / GitHub Copilot 等の AI アシスタントから自然言語でメニュー確認・注文ができます。
@@ -256,7 +256,7 @@ ai-lunch-bot/
 
 | 領域               | 技術                                                                                  |
 | ------------------ | ------------------------------------------------------------------------------------- |
-| **MCP サーバー**   | [mcp (FastMCP)](https://github.com/modelcontextprotocol/python-sdk) — stdio / SSE     |
-| **OCR**            | [Google Gemini 2.5 Flash](https://ai.google.dev/) — PDF 直接アップロード              |
-| **HTTP**           | [httpx](https://www.python-httpx.org/) — 注文システム連携 & PDF ダウンロード          |
-| **スクレイピング** | [BeautifulSoup4](https://www.crummy.com/software/BeautifulSoup/) — メニューページ解析 |
+| **MCP サーバー**   | <a href="https://github.com/modelcontextprotocol/python-sdk" rel="noopener">mcp (FastMCP)</a> — stdio / SSE     |
+| **OCR**            | <a href="https://ai.google.dev/" rel="noopener">Google Gemini 2.5 Flash</a> — PDF 直接アップロード              |
+| **HTTP**           | <a href="https://www.python-httpx.org/" rel="noopener">httpx</a> — 注文システム連携 & PDF ダウンロード          |
+| **スクレイピング** | <a href="https://www.crummy.com/software/BeautifulSoup/" rel="noopener">BeautifulSoup4</a> — メニューページ解析 |
