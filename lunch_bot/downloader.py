@@ -64,12 +64,30 @@ def download_pdf(url: str, dest_dir: Path | None = None) -> Path:
     return filepath
 
 
+def _cleanup_old_pdfs(pdf_urls: list[str], dest_dir: Path) -> None:
+    """サイトに掲載されていないローカル PDF を削除する。"""
+    # サイトのURLから期待されるファイル名のセットを作成
+    expected_filenames = {_convert_url_to_filename(url) for url in pdf_urls}
+
+    # ローカルのPDFを確認し、サイトにないものを削除
+    for local_pdf in dest_dir.glob("*.pdf"):
+        if local_pdf.name not in expected_filenames:
+            logger.info("古い PDF を削除: %s", local_pdf.name)
+            local_pdf.unlink()
+
+
 def download_all_menus(dest_dir: Path | None = None) -> list[Path]:
     """メニューページから全 PDF をダウンロードし、パスのリストを返す。"""
+    dest_dir = dest_dir or IMG_DIR
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
     pdf_urls = fetch_pdf_urls()
     if not pdf_urls:
         logger.warning("メニュー PDF が見つかりませんでした。")
         return []
+
+    # サイトにない古い PDF を削除
+    _cleanup_old_pdfs(pdf_urls, dest_dir)
 
     downloaded: list[Path] = []
     for url in pdf_urls:
