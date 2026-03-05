@@ -8,12 +8,12 @@ google-genai を使い、PDF を直接アップロードして OCR → JSON 変�
 import io
 import json
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
 
 from google import genai
 
+from lunch_bot import config
 from lunch_bot.config import IMG_DIR, MENU_FILE
 
 logger = logging.getLogger(__name__)
@@ -43,9 +43,7 @@ MENU_EXTRACTION_PROMPT = """\
 
 def _get_client() -> genai.Client:
     """Gemini API クライアントを取得する。"""
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        raise RuntimeError("GOOGLE_API_KEY が .env に設定されていません。")
+    api_key = config.get_gemini_api_key()
     return genai.Client(api_key=api_key)
 
 

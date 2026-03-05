@@ -1,18 +1,18 @@
 """注文クライアント — すみよし弁当注文システムへの HTTP 注文
 
 order.sh の Python 移植版。httpx でログイン → トークン取得 → 注文送信を行う。
-認証情報は .env から読み込む。Cookie を保存して再利用することでログイン回数を削減。
+認証情報は keyring（各 OS のセキュアストレージ）から読み込む。Cookie を保存して再利用することでログイン回数を削減。
 """
 
 import json
 import logging
-import os
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
 
 import httpx
 
+from lunch_bot import config
 from lunch_bot.config import BROWSER_HEADERS, COOKIE_FILE, ORDER_BASE_URL
 
 logger = logging.getLogger(__name__)
@@ -59,17 +59,8 @@ class DayOrderStatus:
 
 
 def _get_credentials() -> tuple[str, str, str]:
-    """認証情報を .env から取得する。"""
-    company_cd = os.getenv("BENTO_COMPANY_CD", "000748")
-    user_cd = os.getenv("BENTO_USER_CD", "")
-    password = os.getenv("BENTO_PASSWORD", "")
-
-    if not user_cd or not password:
-        raise RuntimeError(
-            "注文には認証情報が必要です。"
-            ".env に BENTO_USER_CD と BENTO_PASSWORD を設定してください。"
-        )
-    return company_cd, user_cd, password
+    """認証情報をキーチェーンから取得する。"""
+    return config.get_bento_credentials()
 
 
 def _save_cookies(client: httpx.Client) -> None:

@@ -36,23 +36,51 @@ python3 -m venv .venv
 .venv/bin/pip install -e .
 ```
 
-### 2. 環境変数の設定
+### 2. 秘密情報の登録（keyring）
 
-`.env.example` をコピーして `.env` を作成し、API キーを設定:
+秘密情報は keyring（各 OS のセキュアストレージ）で安全に管理します。
 
 ```bash
-cp .env.example .env
+# Google Gemini API Key（必須: https://aistudio.google.com/apikey で取得）
+python -c "import keyring; keyring.set_password('ai-lunch-bot', 'GEMINI_API_KEY', 'YOUR_API_KEY')"
+
+# すみよし注文システム認証情報（注文機能を使う場合）
+python -c "import keyring; keyring.set_password('ai-lunch-bot', 'BENTO_COMPANY_CD', 'YOUR_COMPANY_CD')"
+python -c "import keyring; keyring.set_password('ai-lunch-bot', 'BENTO_USER_CD', 'YOUR_USER_CD')"
+python -c "import keyring; keyring.set_password('ai-lunch-bot', 'BENTO_PASSWORD', 'YOUR_PASSWORD')"
 ```
 
-```dotenv
-# Gemini API キー (必須: https://aistudio.google.com/apikey)
-GOOGLE_API_KEY=your_google_api_key
+<details>
+<summary>keyring 操作のヘルプ</summary>
 
-# すみよし注文システム認証情報 (注文機能を使う場合)
-BENTO_COMPANY_CD=your_company_cd
-BENTO_USER_CD=your_user_cd
-BENTO_PASSWORD=your_password
+```bash
+# 登録確認
+python -c "import keyring; print(keyring.get_password('ai-lunch-bot', 'GEMINI_API_KEY'))"
+
+# 削除する場合
+python -c "import keyring; keyring.delete_password('ai-lunch-bot', 'GEMINI_API_KEY')"
 ```
+
+</details>
+
+<details>
+<summary>macOS: security コマンドを使う場合</summary>
+
+```bash
+# 登録
+security add-generic-password -s ai-lunch-bot -a GEMINI_API_KEY -w 'YOUR_API_KEY'
+security add-generic-password -s ai-lunch-bot -a BENTO_COMPANY_CD -w 'YOUR_COMPANY_CD'
+security add-generic-password -s ai-lunch-bot -a BENTO_USER_CD -w 'YOUR_USER_CD'
+security add-generic-password -s ai-lunch-bot -a BENTO_PASSWORD -w 'YOUR_PASSWORD'
+
+# 確認
+security find-generic-password -s ai-lunch-bot -a GEMINI_API_KEY -w
+
+# 削除
+security delete-generic-password -s ai-lunch-bot -a GEMINI_API_KEY
+```
+
+</details>
 
 ---
 
@@ -243,8 +271,6 @@ ai-lunch-bot/
 ├── .copilot/              (要作成・gitignore対象)
 │   └── mcp-config.json    GitHub Copilot CLI MCP 設定 (SSE)
 ├── img/                   ダウンロード PDF 保存先
-├── .env                   API キー・認証情報
-├── .env.example           .env テンプレート
 ├── .gitignore
 ├── pyproject.toml
 └── README.md

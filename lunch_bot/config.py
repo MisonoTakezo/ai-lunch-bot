@@ -2,13 +2,10 @@
 
 from pathlib import Path
 
-from dotenv import load_dotenv
+import keyring
 
 # プロジェクトルート（lunch_bot/ の親）
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-
-# .env をロード
-load_dotenv(PROJECT_ROOT / ".env")
 
 # ディレクトリ
 IMG_DIR = PROJECT_ROOT / "img"
@@ -42,3 +39,46 @@ BROWSER_HEADERS = {
     "Sec-Fetch-User": "?1",
     "Cache-Control": "max-age=0",
 }
+
+# ─────────────────────── 秘密情報管理 ───────────────────────
+
+SERVICE_NAME = "ai-lunch-bot"
+
+
+def get_secret(key: str, required: bool = True) -> str | None:
+    """キーチェーンから秘密情報を取得する。
+
+    Args:
+        key: 取得するキー名
+        required: True の場合、キーが見つからないと RuntimeError を送出
+
+    Returns:
+        キーチェーンに保存された値、または None（required=False の場合）
+
+    Raises:
+        RuntimeError: required=True でキーが見つからない場合
+    """
+    value = keyring.get_password(SERVICE_NAME, key)
+    if required and not value:
+        raise RuntimeError(
+            f"{key} がキーチェーンに登録されていません。\n"
+            f"登録方法: security add-generic-password -s {SERVICE_NAME} -a {key} -w 'YOUR_VALUE'"
+        )
+    return value
+
+
+def get_gemini_api_key() -> str:
+    """Gemini API キーを取得する。"""
+    return get_secret("GEMINI_API_KEY")
+
+
+def get_bento_credentials() -> tuple[str, str, str]:
+    """ベントー社認証情報を取得する。
+
+    Returns:
+        (company_cd, user_cd, password) のタプル
+    """
+    company_cd = get_secret("BENTO_COMPANY_CD")
+    user_cd = get_secret("BENTO_USER_CD")
+    password = get_secret("BENTO_PASSWORD")
+    return company_cd, user_cd, password
