@@ -93,7 +93,7 @@ security delete-generic-password -s ai-lunch-bot -a GEMINI_API_KEY
 | `list_all_menus` | 全メニュー一覧         | —                                                                        |
 | `place_order`    | 注文                   | `date`, `menu_type` (`"和風"` / `"あいランチ"` / `"その他"`), `quantity` |
 | `cancel_order`   | 取り消し               | `date`, `menu_type`                                                      |
-| `get_order_status` | 注文状況確認         | `date_str`: `"今日"`, `"今月"`, `"2月"`                                  |
+| `get_order_status` | 注文状況確認         | `date_str`: `"今日"`, `"今週"`, `"来週"`, `"今月"`, `"2月"`              |
 
 ### 会話例
 

@@ -257,11 +257,11 @@ def cancel_order(date: str, menu_type: str) -> str:
 
 @mcp.tool()
 def get_order_status(date_str: str) -> str:
-    """指定された日付、または月全体の注文状況を確認します。
-    特定の日の注文内容や、今月の注文一覧を確認できます。
+    """指定された日付、週、または月全体の注文状況を確認します。
+    特定の日の注文内容や、今週/来週/今月の注文一覧を確認できます。
 
     Args:
-        date_str: 日付 (YYYY-MM-DD, "今日", "明日", "今月", "来月", "2月" など)
+        date_str: 日付 (YYYY-MM-DD, "今日", "明日", "今週", "来週", "今月", "来月" など)
     """
     today = datetime.now()
 
@@ -291,6 +291,29 @@ def get_order_status(date_str: str) -> str:
             lines.append("  注文はありません。")
         return "\n".join(lines)
 
+    # 週の照会（今週/来週/再来週）
+    week_dates = _resolve_week_query(date_str)
+    if week_dates:
+        week_labels = {"今週": "今週", "こんしゅう": "今週", "来週": "来週", "らいしゅう": "来週", "再来週": "再来週", "さらいしゅう": "再来週"}
+        label = week_labels.get(date_str.strip(), date_str)
+        lines = [f"📋 {label}の注文状況 ({week_dates[0]} 〜 {week_dates[-1]})\n"]
+        has_order = False
+        for date in week_dates:
+            try:
+                status = _get_order_status(date)
+                if status.holiday:
+                    continue  # 休業日は省略
+                if status.orders:
+                    has_order = True
+                    order_str = ", ".join(f"{k} {v}個" for k, v in status.orders.items())
+                    lines.append(f"  📅 {date}: {order_str}")
+                # 注文なしの日は省略
+            except Exception:
+                continue  # エラーの日はスキップ
+        if not has_order:
+            lines.append("  注文はありません。")
+        return "\n".join(lines)
+
     # 特定日の照会
     target = _resolve_date_query(date_str) or date_str.strip()
     try:
@@ -303,6 +326,30 @@ def get_order_status(date_str: str) -> str:
 
     order_str = ", ".join(f"{k} {v}個" for k, v in status.orders.items())
     return f"📅 {target} の注文状況: {order_str}"
+
+
+def _resolve_week_query(query: str) -> list[str] | None:
+    """週の照会クエリを平日（月〜金）の日付リストに解決する。"""
+    today = datetime.now()
+    q = query.strip()
+
+    # 週のオフセットを決定
+    if q in ("今週", "こんしゅう"):
+        week_offset = 0
+    elif q in ("来週", "らいしゅう"):
+        week_offset = 1
+    elif q in ("再来週", "さらいしゅう"):
+        week_offset = 2
+    else:
+        return None
+
+    # 今週の月曜日を基準に計算
+    days_since_monday = today.weekday()  # 月=0, 火=1, ...
+    monday = today - timedelta(days=days_since_monday)
+    monday += timedelta(weeks=week_offset)
+
+    # 月〜金の日付リストを生成
+    return [(monday + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(5)]
 
 
 def _resolve_month_query(query: str) -> tuple[int, int] | None:
