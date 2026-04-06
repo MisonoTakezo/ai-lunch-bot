@@ -23,6 +23,7 @@ MCP (Model Context Protocol) サーバーとして起動し、Claude Code / GitH
 | 🗣️ | **自然言語検索**    | 「明日のメニューは？」「フライがある日は？」「魚料理のメニューはどっち？🐟️」          |
 | 🛒 | **注文 / 取り消し** | すみよし注文システムにHTTP リクエスト                    |
 | 🔌 | **MCP 対応**        | stdio / SSE 両トランスポート対応                     |
+| 🔔 | **Slack 通知**      | 毎朝の注文状況を Slack に自動通知（launchd）         |
 
 ---
 
@@ -48,6 +49,9 @@ python -c "import keyring; keyring.set_password('ai-lunch-bot', 'GEMINI_API_KEY'
 python -c "import keyring; keyring.set_password('ai-lunch-bot', 'BENTO_COMPANY_CD', 'YOUR_COMPANY_CD')"
 python -c "import keyring; keyring.set_password('ai-lunch-bot', 'BENTO_USER_CD', 'YOUR_USER_CD')"
 python -c "import keyring; keyring.set_password('ai-lunch-bot', 'BENTO_PASSWORD', 'YOUR_PASSWORD')"
+
+# Slack Incoming Webhook URL（Slack 通知機能を使う場合）
+python -c "import keyring; keyring.set_password('ai-lunch-bot', 'SLACK_WEBHOOK_URL', 'https://hooks.slack.com/services/...')"
 ```
 
 <details>
@@ -234,6 +238,9 @@ gh copilot
 
 # 既存 PDF で再 OCR のみ
 .venv/bin/python -m lunch_bot --skip-download --pipeline-only
+
+# Slack に今日の注文状況を通知
+.venv/bin/python -m lunch_bot --notify
 ```
 
 ### CLI オプション一覧
@@ -247,6 +254,7 @@ gh copilot
 | `--skip-download` | PDF ダウンロードをスキップ            |
 | `--skip-ocr`      | OCR をスキップ（既存 JSON 使用）      |
 | `--pipeline-only` | パイプラインのみ実行                  |
+| `--notify`        | 今日の注文状況を Slack に通知して終了 |
 | `--log-file FILE` | ログをファイルに出力                  |
 | `-v, --verbose`   | 詳細ログを表示                        |
 
@@ -263,6 +271,7 @@ ai-lunch-bot/
 │   ├── config.py          パス定数・環境変数
 │   ├── downloader.py      メニュー PDF ダウンロード
 │   ├── ocr.py             Gemini OCR (PDF → JSON)
+│   ├── notify.py          Slack 通知 (Incoming Webhook)
 │   ├── order.py           注文クライアント (HTTP)
 │   └── server.py          MCP サーバー + ツール定義
 ├── .mcp.json              (要作成・gitignore対象) Claude Code MCP 設定
@@ -275,6 +284,29 @@ ai-lunch-bot/
 ├── pyproject.toml
 └── README.md
 ```
+
+---
+
+## 🔔 Slack 通知（自動スケジュール）
+
+平日毎朝 10:00 に、今日の注文状況を Slack に自動通知します。
+
+**通知内容:**
+- 注文あり → `🍱 今日のランチ：和風ランチ（さごし漬け焼き, 牛大根煮, ...）`
+- 注文なし → `🍱 今日のランチ：注文なし`
+
+### セットアップ
+
+1. Slack App で Incoming Webhooks を有効化し、Webhook URL を取得
+2. keyring に保存:
+   ```bash
+   python -c "import keyring; keyring.set_password('ai-lunch-bot', 'SLACK_WEBHOOK_URL', 'YOUR_WEBHOOK_URL')"
+   ```
+3. macOS launchd で自動実行を設定:
+   ```bash
+   # plist を ~/Library/LaunchAgents/ に配置して読み込み
+   launchctl load ~/Library/LaunchAgents/com.misono.lunch-notify.plist
+   ```
 
 ---
 

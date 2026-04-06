@@ -122,11 +122,20 @@ def main() -> None:
         "--pipeline-only", action="store_true", help="パイプラインのみ実行"
     )
 
+    parser.add_argument(
+        "--notify", action="store_true", help="今日の注文状況を Slack に通知して終了"
+    )
+
     parser.add_argument("-v", "--verbose", action="store_true", help="詳細ログ")
     parser.add_argument("--log-file", type=str, help="ログをファイルに出力")
 
     args = parser.parse_args()
     _setup_logging(args.verbose, args.log_file)
+
+    if args.notify:
+        from lunch_bot.notify import send_notification
+        send_notification()
+        return
 
     transport = "sse" if args.sse else "stdio"
 
