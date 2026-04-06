@@ -7,6 +7,7 @@ MCPツール:
   - place_order      — 注文実行
   - cancel_order     — 注文取り消し
   - get_order_status — 注文状況確認
+  - update_menu_data — メニューデータ更新（PDF DL → OCR → JSON）
 """
 
 import logging
@@ -326,6 +327,33 @@ def get_order_status(date_str: str) -> str:
 
     order_str = ", ".join(f"{k} {v}個" for k, v in status.orders.items())
     return f"📅 {target} の注文状況: {order_str}"
+
+
+@mcp.tool()
+def update_menu_data(skip_download: bool = False) -> str:
+    """メニューデータを更新します（PDF ダウンロード → Gemini OCR → JSON 保存）。
+
+    Args:
+        skip_download: True の場合、PDF ダウンロードをスキップし既存 PDF で OCR のみ実行
+    """
+    try:
+        pdf_paths = None
+        if not skip_download:
+            pdf_paths = download_all_menus()
+            if not pdf_paths:
+                return "⚠️ PDF が取得できませんでした。既存データで OCR を試みます。"
+
+        menu_list = ocr_all_menus(pdf_paths if not skip_download else None)
+        if menu_list:
+            save_menu_data(menu_list)
+            dates = [item["date"] for item in menu_list]
+            return (
+                f"✅ メニューデータを更新しました ({len(menu_list)} 日分)\n"
+                f"期間: {dates[0]} 〜 {dates[-1]}"
+            )
+        return "⚠️ OCR 結果が空でした。既存データは変更されていません。"
+    except Exception as e:
+        return f"❌ メニューデータの更新に失敗しました: {e}"
 
 
 def _resolve_week_query(query: str) -> list[str] | None:
