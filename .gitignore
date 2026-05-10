@@ -18,6 +18,7 @@ menu_data.json
 # machine-specific MCP client configs (absolute paths)
 .mcp.json
 .copilot/
+.claude/
 
 # legacy
 bento_cookie.txt
