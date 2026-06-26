@@ -7,7 +7,7 @@ import httpx
 
 from lunch_bot.config import get_secret
 from lunch_bot.ocr import load_menu_data
-from lunch_bot.order import DayOrderStatus, get_monthly_orders, get_order_status
+from lunch_bot.order import get_order_status
 
 logger = logging.getLogger(__name__)
 
@@ -46,32 +46,24 @@ def _build_message(today: str) -> str:
 
 
 def _build_next_monday_reminder(friday: datetime) -> str | None:
-    """金曜日に、来週月曜（休業日なら次の営業日）の注文有無を確認する。
+    """金曜日に、来週月曜（土日はスキップ）の注文有無を確認する。
 
-    未注文なら確認メッセージを、注文済み・取得失敗・該当日なしなら None を返す。
+    未注文なら確認メッセージを、注文済み・該当日なしなら None、取得失敗時は警告文を返す。
     """
     monday = friday + timedelta(days=3)
-    cached: dict[tuple[int, int], list[DayOrderStatus]] = {}
 
     for offset in range(5):  # 月〜金まで最大5日探索
         target = monday + timedelta(days=offset)
-        key = (target.year, target.month)
-        if key not in cached:
-            try:
-                cached[key] = get_monthly_orders(target.year, target.month)
-            except Exception as e:
-                logger.warning("月次注文状況の取得に失敗: %s", e)
-                return None
+        if target.weekday() >= 5:  # 土日はスキップ
+            continue
 
         target_str = target.strftime("%Y-%m-%d")
-        st = next((s for s in cached[key] if s.date == target_str), None)
-        if st is None:
-            # 月のテーブルに行がない（土日など） → 次の日へ
-            continue
-        if st.holiday:
-            # 休業日 → 次の営業日を確認
-            continue
-        # 来週最初の営業日
+        try:
+            st = get_order_status(target_str)
+        except Exception as e:
+            logger.warning("来週月曜の注文状況取得に失敗: %s", e)
+            return "⚠️ 来週月曜の注文状況を確認できませんでした。"
+
         if st.orders:
             return None
         weekday_jp = JP_WEEKDAYS[target.weekday()]
