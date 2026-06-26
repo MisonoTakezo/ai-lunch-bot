@@ -39,9 +39,10 @@ def _build_message(today: str) -> str:
                 detail = item["ai_lunch"]
             break
 
+    prefix = "⬛️" if "和風" in menu_name else "🟥" if "あい" in menu_name else ""
     if detail:
-        return f"🍱 今日のランチ：{menu_name}（{detail}）"
-    return f"🍱 今日のランチ：{menu_name}"
+        return f"🍱 今日のランチ：{prefix}{menu_name}（{detail}）"
+    return f"🍱 今日のランチ：{prefix}{menu_name}"
 
 
 def _build_next_monday_reminder(friday: datetime) -> str | None:
