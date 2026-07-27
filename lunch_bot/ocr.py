@@ -1,8 +1,8 @@
-"""OCR モジュール 
-Gemini API で PDF からメニュー JSON を生成する
+"""OCR モジュール
+Gemini API で PDF/画像 からメニュー JSON を生成する
 
-google-genai を使い、PDF を直接アップロードして OCR → JSON 変換する。
-複数 PDF に対応し、結果をマージして重複日付は除去する。
+google-genai を使い、PDF や画像を直接アップロードして OCR → JSON 変換する。
+複数ファイルに対応し、結果をマージして重複日付は除去する。
 """
 
 import io
@@ -18,8 +18,16 @@ from lunch_bot.config import IMG_DIR, MENU_FILE
 
 logger = logging.getLogger(__name__)
 
+# 拡張子 → MIME type
+MIME_TYPES = {
+    ".pdf": "application/pdf",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+}
+
 MENU_EXTRACTION_PROMPT = """\
-この PDF はランチメニュー表です。
+このファイル（PDF または画像）はランチメニュー表です。
 全ての日付について、あいランチと和風ランチの情報を抽出し、以下のフォーマットの JSON 配列で出力してください。
 
 ルール:
@@ -48,7 +56,7 @@ def _get_client() -> genai.Client:
 
 
 def ocr_pdf(client: genai.Client, pdf_path: Path) -> list[dict]:
-    """単一 PDF を Gemini で OCR し、メニューリストを返す。"""
+    """単一のメニューファイル（PDF/画像）を Gemini で OCR し、メニューリストを返す。"""
     logger.info("OCR 処理中: %s", pdf_path.name)
 
     now = datetime.now()
@@ -57,10 +65,14 @@ def ocr_pdf(client: genai.Client, pdf_path: Path) -> list[dict]:
         next_year=now.year + 1,
     )
 
+    mime_type = MIME_TYPES.get(pdf_path.suffix.lower())
+    if mime_type is None:
+        raise ValueError(f"未対応のファイル形式: {pdf_path.suffix}")
+
     # ファイルをアップロード (日本語ファイル名対応のためバイナリで渡す)
     uploaded = client.files.upload(
         file=io.BytesIO(pdf_path.read_bytes()),
-        config={"mime_type": "application/pdf"},
+        config={"mime_type": mime_type},
     )
     logger.info("Gemini にアップロード完了: %s", uploaded.name)
 
@@ -94,10 +106,13 @@ def ocr_all_menus(pdf_paths: list[Path] | None = None) -> list[dict]:
     pdf_paths が未指定の場合、IMG_DIR 配下の全 PDF を処理する。
     """
     if pdf_paths is None:
-        pdf_paths = sorted(IMG_DIR.glob("*.pdf"))
+        pdf_paths = sorted(
+            p for p in IMG_DIR.iterdir()
+            if p.is_file() and p.suffix.lower() in MIME_TYPES
+        )
 
     if not pdf_paths:
-        logger.warning("処理対象の PDF がありません。")
+        logger.warning("処理対象のメニューファイルがありません。")
         return []
 
     client = _get_client()
