@@ -1,6 +1,6 @@
-"""メニューのPDFをダウンロードするモジュール
+"""メニューのファイル（PDF/画像）をダウンロードするモジュール
 
-sumiyoshi-bento.com/menu/ から掲載中の全メニュー PDF を取得し、
+sumiyoshi-bento.com/menu/ から掲載中の全メニューファイル（PDF/JPG/PNG）を取得し、
 img/ ディレクトリに保存する。
 """
 
@@ -16,25 +16,42 @@ from lunch_bot.config import IMG_DIR, MENU_PAGE_URL
 
 logger = logging.getLogger(__name__)
 
+MENU_FILE_EXTENSIONS = (".pdf", ".jpg", ".jpeg", ".png")
+# 装飾用画像を除外するキーワード（URLに含まれれば除外）
+EXCLUDED_URL_KEYWORDS = (
+    "logo", "instagram", "facebook", "header", "icon", "banner",
+    "-scaled.",  # WordPress が自動生成する原本の縮小版（原本PDF/画像と重複するため除外）
+)
+
 
 def fetch_pdf_urls() -> list[str]:
-    """メニューページをスクレイピングし、掲載中の全 PDF リンクを抽出する。"""
+    """メニューページをスクレイピングし、掲載中の全メニューファイル URL を抽出する。
+
+    <a href> と <img src> の両方を対象に、拡張子が PDF/JPG/JPEG/PNG のものを収集。
+    ロゴ/SNSアイコン等の装飾画像は除外する。
+    """
     logger.info("メニューページを取得中: %s", MENU_PAGE_URL)
     resp = httpx.get(MENU_PAGE_URL, follow_redirects=True, timeout=30)
     resp.raise_for_status()
 
     soup = BeautifulSoup(resp.text, "html.parser")
-    pdf_urls: list[str] = []
+    urls: list[str] = []
 
-    for a_tag in soup.find_all("a", href=True):
-        href = a_tag["href"]
-        if href.lower().endswith(".pdf"):
-            full_url = urljoin(MENU_PAGE_URL, href)
-            if full_url not in pdf_urls:
-                pdf_urls.append(full_url)
+    for tag in soup.find_all(["a", "img"]):
+        raw = tag.get("href") or tag.get("src")
+        if not raw:
+            continue
+        raw_lower = raw.lower()
+        if not raw_lower.endswith(MENU_FILE_EXTENSIONS):
+            continue
+        if any(k in raw_lower for k in EXCLUDED_URL_KEYWORDS):
+            continue
+        full_url = urljoin(MENU_PAGE_URL, raw)
+        if full_url not in urls:
+            urls.append(full_url)
 
-    logger.info("PDF リンクを %d 件検出", len(pdf_urls))
-    return pdf_urls
+    logger.info("メニューファイルを %d 件検出", len(urls))
+    return urls
 
 
 def _convert_url_to_filename(url: str) -> str:
@@ -65,15 +82,19 @@ def download_pdf(url: str, dest_dir: Path | None = None) -> Path:
 
 
 def _cleanup_old_pdfs(pdf_urls: list[str], dest_dir: Path) -> None:
-    """サイトに掲載されていないローカル PDF を削除する。"""
+    """サイトに掲載されていないローカルのメニューファイル（PDF/画像）を削除する。"""
     # サイトのURLから期待されるファイル名のセットを作成
     expected_filenames = {_convert_url_to_filename(url) for url in pdf_urls}
 
-    # ローカルのPDFを確認し、サイトにないものを削除
-    for local_pdf in dest_dir.glob("*.pdf"):
-        if local_pdf.name not in expected_filenames:
-            logger.info("古い PDF を削除: %s", local_pdf.name)
-            local_pdf.unlink()
+    # ローカルのメニューファイルを確認し、サイトにないものを削除
+    for local_file in dest_dir.iterdir():
+        if not local_file.is_file():
+            continue
+        if local_file.suffix.lower() not in MENU_FILE_EXTENSIONS:
+            continue
+        if local_file.name not in expected_filenames:
+            logger.info("古いメニューファイルを削除: %s", local_file.name)
+            local_file.unlink()
 
 
 def download_all_menus(dest_dir: Path | None = None) -> list[Path]:
